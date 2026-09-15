@@ -7,6 +7,9 @@
  * the host to every joiner (a star topology), so all four browsers apply moves
  * in the same order. The host never re-validates a move — `GameSession` already
  * rejects anything illegal, on every peer, the same way it does for pass-and-play.
+ *
+ * Seats are claimed, not handed out: a joiner is shown which colours are still
+ * free and picks one, so friends can deliberately end up on the same team.
  */
 
 import Peer, { type DataConnection } from 'peerjs';
@@ -16,6 +19,9 @@ import type { IntentHandler, MoveIntent, Transport } from './transport.js';
 const ROOM_PREFIX = 'quadchess-';
 /** Excludes 0/O/1/I, which are easy to mis-type or mis-read aloud. */
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const CONNECT_TIMEOUT_MS = 20_000;
+const MAX_NAME_LENGTH = 24;
+const FALLBACK_NAME = 'Player';
 
 export function randomRoomCode(): string {
   const bytes = new Uint32Array(6);
@@ -25,36 +31,72 @@ export function randomRoomCode(): string {
   return code;
 }
 
+/** Trims and length-caps a name before it is shown on three other people's screens. */
+export function sanitizeName(raw: string): string {
+  return raw.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH);
+}
+
+export interface RoomSeat {
+  readonly color: PlayerColor;
+  /** Null while the seat is still open. */
+  readonly name: string | null;
+}
+
 export type RoomEvent =
+  /** Joiner: the host has said which seats are free. Pick one, then call `claim`. */
+  | { readonly kind: 'seatsOffered'; readonly seats: readonly RoomSeat[] }
   | { readonly kind: 'assigned'; readonly color: PlayerColor }
-  | { readonly kind: 'roster'; readonly colors: readonly PlayerColor[] }
-  | { readonly kind: 'peerLeft' }
+  | { readonly kind: 'claimRejected'; readonly reason: string; readonly seats: readonly RoomSeat[] }
+  | { readonly kind: 'roster'; readonly seats: readonly RoomSeat[] }
+  | { readonly kind: 'peerLeft'; readonly name: string }
   | { readonly kind: 'disconnected'; readonly reason: string };
 
 type WireMessage =
   | { readonly type: 'intent'; readonly intent: MoveIntent }
+  | { readonly type: 'seats'; readonly seats: readonly RoomSeat[] }
+  | { readonly type: 'claim'; readonly color: PlayerColor; readonly name: string }
   | { readonly type: 'assign'; readonly color: PlayerColor }
-  | { readonly type: 'roster'; readonly colors: readonly PlayerColor[] }
+  | { readonly type: 'claimRejected'; readonly reason: string; readonly seats: readonly RoomSeat[] }
+  | { readonly type: 'roster'; readonly seats: readonly RoomSeat[] }
   | { readonly type: 'sync'; readonly json: string };
 
 export interface PeerTransportOptions {
-  /** Turn order; seat 0 is always the host's colour. */
+  /** Every colour in the game, in turn order. */
   readonly seats: readonly PlayerColor[];
+  /** Host only: the colour the host claims for themselves. */
+  readonly hostColor?: PlayerColor;
+  readonly playerName: string;
   readonly onRoomEvent: (event: RoomEvent) => void;
-  /** Host only: the current game as JSON, sent to every newly-connected joiner. */
+  /** Host only: the current game as JSON, sent to every newly-seated joiner. */
   readonly getSyncPayload?: () => string;
-  /** Joiner only: applies the host's game snapshot on connecting. */
+  /** Joiner only: applies the host's game snapshot on being seated. */
   readonly onSync?: (json: string) => void;
 }
 
-/**
- * Wraps peerjs's callback API in a promise, and rejects if `open` never fires.
- */
-function waitForOpen(peer: Peer): Promise<void> {
-  return new Promise((resolve, reject) => {
-    peer.on('open', () => resolve());
-    peer.on('error', (err) => reject(err));
+function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), CONNECT_TIMEOUT_MS);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
+    );
   });
+}
+
+function waitForOpen(peer: Peer): Promise<void> {
+  return withTimeout(
+    new Promise<void>((resolve, reject) => {
+      peer.on('open', () => resolve());
+      peer.on('error', (err) => reject(err));
+    }),
+    'Could not reach the matchmaking service.',
+  );
 }
 
 export class PeerTransport implements Transport {
@@ -67,10 +109,11 @@ export class PeerTransport implements Transport {
   readonly #onRoomEvent: (event: RoomEvent) => void;
   readonly #options: PeerTransportOptions;
   readonly #handlers = new Set<IntentHandler>();
+  /** Who is sitting where. Host-owned; joiners hold a replica for display. */
+  readonly #names = new Map<PlayerColor, string>();
   #hostConnection: DataConnection | null = null;
-  /** Host only: joiner connections, in the order they were assigned a seat. */
-  readonly #joiners = new Map<DataConnection, PlayerColor>();
-  #nextSeatIndex = 1;
+  /** Host only: connections that have successfully claimed a seat. */
+  readonly #seatByConn = new Map<DataConnection, PlayerColor>();
   #closed = false;
 
   private constructor(peer: Peer, isHost: boolean, options: PeerTransportOptions) {
@@ -81,16 +124,29 @@ export class PeerTransport implements Transport {
     this.#options = options;
   }
 
-  static async host(options: PeerTransportOptions): Promise<{ transport: PeerTransport; roomCode: string }> {
+  static async host(
+    options: PeerTransportOptions,
+  ): Promise<{ transport: PeerTransport; roomCode: string; hostColor: PlayerColor }> {
+    const hostColor = options.hostColor ?? options.seats[0];
+    if (!hostColor) throw new Error('the rules profile has no seats');
+
     const roomCode = randomRoomCode();
     const peer = new Peer(ROOM_PREFIX + roomCode);
     const transport = new PeerTransport(peer, true, options);
     await waitForOpen(peer);
+
+    transport.#names.set(hostColor, sanitizeName(options.playerName) || FALLBACK_NAME);
     peer.on('connection', (conn) => transport.#acceptJoiner(conn));
-    peer.on('disconnected', () => transport.#onRoomEvent({ kind: 'disconnected', reason: 'Lost the signalling connection.' }));
-    return { transport, roomCode };
+    peer.on('error', (err) =>
+      transport.#onRoomEvent({ kind: 'disconnected', reason: err.message || 'The room connection failed.' }),
+    );
+    peer.on('disconnected', () =>
+      transport.#onRoomEvent({ kind: 'disconnected', reason: 'Lost the connection to the matchmaking service.' }),
+    );
+    return { transport, roomCode, hostColor };
   }
 
+  /** Resolves once connected to the host. The caller then waits for `seatsOffered`. */
   static async join(roomCode: string, options: PeerTransportOptions): Promise<PeerTransport> {
     const peer = new Peer();
     const transport = new PeerTransport(peer, false, options);
@@ -99,10 +155,16 @@ export class PeerTransport implements Transport {
     const conn = peer.connect(ROOM_PREFIX + roomCode.trim().toUpperCase(), { reliable: true });
     transport.#hostConnection = conn;
 
-    await new Promise<void>((resolve, reject) => {
-      conn.on('open', () => resolve());
-      conn.on('error', (err) => reject(err));
-    });
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        conn.on('open', () => resolve());
+        conn.on('error', (err) => reject(err));
+        // An unknown room code surfaces as `peer-unavailable` on the peer, not on
+        // the connection, so without this listener the join would wait forever.
+        peer.on('error', (err) => reject(err));
+      }),
+      'No game found with that code. Check it and try again.',
+    );
 
     conn.on('data', (data) => transport.#handleWire(data as WireMessage));
     conn.on('close', () =>
@@ -111,41 +173,65 @@ export class PeerTransport implements Transport {
     return transport;
   }
 
+  /** Joiner: asks the host for a colour. Answered by `assigned` or `claimRejected`. */
+  claim(color: PlayerColor, name: string): void {
+    const claimed = sanitizeName(name) || FALLBACK_NAME;
+    this.#hostConnection?.send({ type: 'claim', color, name: claimed } satisfies WireMessage);
+  }
+
+  seats(): readonly RoomSeat[] {
+    return this.#seats.map((color) => ({ color, name: this.#names.get(color) ?? null }));
+  }
+
   #acceptJoiner(conn: DataConnection): void {
     conn.on('open', () => {
-      const color = this.#seats[this.#nextSeatIndex];
-      if (!color) {
-        // The room is already full.
-        conn.close();
-        return;
-      }
-      this.#nextSeatIndex += 1;
-      this.#joiners.set(conn, color);
-      conn.send({ type: 'assign', color } satisfies WireMessage);
-      const payload = this.#options.getSyncPayload?.();
-      if (payload) conn.send({ type: 'sync', json: payload } satisfies WireMessage);
-      this.#broadcastRoster();
+      conn.send({ type: 'seats', seats: this.seats() } satisfies WireMessage);
     });
 
     conn.on('data', (data) => this.#handleWire(data as WireMessage, conn));
 
     conn.on('close', () => {
-      this.#joiners.delete(conn);
+      const color = this.#seatByConn.get(conn);
+      if (!color) return;
+      const name = this.#names.get(color) ?? FALLBACK_NAME;
+      this.#names.delete(color);
+      this.#seatByConn.delete(conn);
       this.#broadcastRoster();
-      this.#onRoomEvent({ kind: 'peerLeft' });
+      this.#onRoomEvent({ kind: 'peerLeft', name });
     });
   }
 
-  #rosterColors(): readonly PlayerColor[] {
-    const host = this.#seats[0];
-    if (!host) return [];
-    return [host, ...this.#joiners.values()];
+  #handleClaim(conn: DataConnection, color: PlayerColor, name: string): void {
+    if (!this.#seats.includes(color)) {
+      conn.send({
+        type: 'claimRejected',
+        reason: 'That colour is not in this game.',
+        seats: this.seats(),
+      } satisfies WireMessage);
+      return;
+    }
+    if (this.#names.has(color)) {
+      conn.send({
+        type: 'claimRejected',
+        reason: `${this.#names.get(color) ?? 'Someone'} already took that colour.`,
+        seats: this.seats(),
+      } satisfies WireMessage);
+      return;
+    }
+
+    this.#names.set(color, name);
+    this.#seatByConn.set(conn, color);
+    conn.send({ type: 'assign', color } satisfies WireMessage);
+    const payload = this.#options.getSyncPayload?.();
+    if (payload) conn.send({ type: 'sync', json: payload } satisfies WireMessage);
+    this.#broadcastRoster();
   }
 
   #broadcastRoster(): void {
-    const message: WireMessage = { type: 'roster', colors: this.#rosterColors() };
-    this.#onRoomEvent({ kind: 'roster', colors: message.colors });
-    for (const conn of this.#joiners.keys()) conn.send(message);
+    const seats = this.seats();
+    this.#onRoomEvent({ kind: 'roster', seats });
+    const message: WireMessage = { type: 'roster', seats };
+    for (const conn of this.#seatByConn.keys()) conn.send(message);
   }
 
   #handleWire(message: WireMessage, from?: DataConnection): void {
@@ -154,7 +240,7 @@ export class PeerTransport implements Transport {
         this.#deliver(message.intent);
         if (this.#isHost) {
           const wire: WireMessage = { type: 'intent', intent: message.intent };
-          for (const conn of this.#joiners.keys()) {
+          for (const conn of this.#seatByConn.keys()) {
             if (conn !== from) conn.send(wire);
           }
           // Echo back to the sender: it applies its own move the same way as everyone
@@ -162,11 +248,24 @@ export class PeerTransport implements Transport {
           from?.send(wire);
         }
         return;
+      case 'claim':
+        if (this.#isHost && from) this.#handleClaim(from, message.color, sanitizeName(message.name));
+        return;
+      case 'seats':
+        this.#onRoomEvent({ kind: 'seatsOffered', seats: message.seats });
+        return;
       case 'assign':
         this.#onRoomEvent({ kind: 'assigned', color: message.color });
         return;
+      case 'claimRejected':
+        this.#onRoomEvent({ kind: 'claimRejected', reason: message.reason, seats: message.seats });
+        return;
       case 'roster':
-        this.#onRoomEvent({ kind: 'roster', colors: message.colors });
+        for (const seat of message.seats) {
+          if (seat.name) this.#names.set(seat.color, seat.name);
+          else this.#names.delete(seat.color);
+        }
+        this.#onRoomEvent({ kind: 'roster', seats: message.seats });
         return;
       case 'sync':
         this.#options.onSync?.(message.json);
@@ -183,7 +282,7 @@ export class PeerTransport implements Transport {
     if (this.#isHost) {
       this.#deliver(intent);
       const wire: WireMessage = { type: 'intent', intent };
-      for (const conn of this.#joiners.keys()) conn.send(wire);
+      for (const conn of this.#seatByConn.keys()) conn.send(wire);
       return;
     }
     this.#hostConnection?.send({ type: 'intent', intent } satisfies WireMessage);
@@ -198,8 +297,8 @@ export class PeerTransport implements Transport {
     if (this.#closed) return;
     this.#closed = true;
     this.#handlers.clear();
-    for (const conn of this.#joiners.keys()) conn.close();
-    this.#joiners.clear();
+    for (const conn of this.#seatByConn.keys()) conn.close();
+    this.#seatByConn.clear();
     this.#hostConnection?.close();
     this.#peer.destroy();
   }

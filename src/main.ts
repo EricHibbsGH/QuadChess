@@ -22,6 +22,7 @@ import { GameSession } from './engine/session.js';
 import { fromJson, toJson } from './engine/serialization.js';
 import type { Move } from './engine/movement.js';
 import { defaultProfile, getProfile, PROFILES } from './rules/index.js';
+import { teamLabel } from './rules/types.js';
 
 import { BoardView } from './ui/boardView.js';
 import { Controls, type OnlineRole } from './ui/controls.js';
@@ -71,6 +72,10 @@ class App {
   /** Colours claimed by OTHER peers in the current room; never includes `#myColor`. */
   #remoteColors = new Set<PlayerColor>();
   #onlineRole: OnlineRole = 'offline';
+  #peer: PeerTransport | null = null;
+  /** Room code from a shared `?room=` link, kept so a failed join can be retried. */
+  #pendingRoom = '';
+  #playerName = '';
 
   #selected: Coord | null = null;
   #selectedMoves: readonly Move[] = [];
@@ -126,7 +131,10 @@ class App {
     this.#render();
 
     const roomFromUrl = new URLSearchParams(window.location.search).get('room');
-    if (roomFromUrl) void this.#joinOnline(roomFromUrl);
+    if (roomFromUrl) {
+      this.#pendingRoom = roomFromUrl.trim().toUpperCase();
+      this.#openLobby();
+    }
   }
 
   // ----------------------------------------------------------------------
@@ -457,16 +465,24 @@ class App {
   // ----------------------------------------------------------------------
 
   #toggleOnline(): void {
-    if (this.#onlineRole === 'offline') {
-      this.#onlineDialog.open({
-        onHost: () => void this.#hostOnline(),
-        onJoin: (code) => void this.#joinOnline(code),
+    if (this.#onlineRole === 'offline') this.#openLobby();
+    else this.#leaveOnline();
+  }
+
+  #openLobby(): void {
+    this.#onlineDialog.setTeamLabeller((color) =>
+      this.#session.profile.teams ? teamLabel(this.#session.profile, color) : null,
+    );
+    this.#onlineDialog.open(
+      {
+        onHost: (name) => void this.#hostOnline(name),
+        onJoin: (code, name) => void this.#joinOnline(code, name),
+        onClaim: (color) => this.#peer?.claim(color, this.#playerName),
         onLeave: () => this.#leaveOnline(),
-        onClose: () => {},
-      });
-    } else {
-      this.#leaveOnline();
-    }
+        onClose: () => this.#leaveOnline(),
+      },
+      this.#pendingRoom,
+    );
   }
 
   /** Replaces the active transport, moving the intent subscription across. */
@@ -474,19 +490,22 @@ class App {
     this.#unbindTransport();
     this.#transport.close();
     this.#transport = transport;
+    this.#peer = transport instanceof PeerTransport ? transport : null;
     this.#unbindTransport = this.#transport.onRemote((intent) => this.#applyIntent(intent));
   }
 
-  async #hostOnline(): Promise<void> {
-    this.#onlineDialog.showConnecting();
+  async #hostOnline(name: string): Promise<void> {
+    this.#playerName = name;
+    this.#onlineDialog.showConnecting('Creating your room…');
     try {
-      const { transport, roomCode } = await PeerTransport.host({
+      const { transport, roomCode, hostColor } = await PeerTransport.host({
         seats: this.#session.profile.turnOrder,
+        playerName: name,
         onRoomEvent: (event) => this.#handleRoomEvent(event),
         getSyncPayload: () => toJson(this.#session.state),
       });
       this.#bindTransport(transport);
-      this.#myColor = this.#session.profile.turnOrder[0] ?? null;
+      this.#myColor = hostColor;
       this.#remoteColors = new Set();
       this.#onlineRole = 'host';
       // Online play needs every peer starting from the same position.
@@ -494,30 +513,40 @@ class App {
 
       const joinUrl = new URL(window.location.href);
       joinUrl.search = `?room=${roomCode}`;
-      this.#onlineDialog.showHosting(roomCode, joinUrl.toString());
+      this.#onlineDialog.showHosting(roomCode, joinUrl.toString(), transport.seats());
       this.#render();
-    } catch {
-      this.#onlineDialog.showError('Could not start a room. Check your connection and try again.');
+      this.#announcer.say(`Room ${roomCode} is open. You are playing ${COLOR_NAMES[hostColor]}.`);
+    } catch (error) {
+      this.#resetOnlineState();
+      this.#onlineDialog.showStartError(messageOf(error, 'Could not start a room. Check your connection and try again.'));
     }
   }
 
-  async #joinOnline(roomCode: string): Promise<void> {
-    this.#onlineDialog.showConnecting();
+  async #joinOnline(roomCode: string, name: string): Promise<void> {
+    this.#playerName = name;
+    this.#pendingRoom = roomCode.trim().toUpperCase();
+    this.#onlineDialog.showConnecting('Looking for that game…');
     try {
       const transport = await PeerTransport.join(roomCode, {
         seats: this.#session.profile.turnOrder,
+        playerName: name,
         onRoomEvent: (event) => this.#handleRoomEvent(event),
         onSync: (json) => this.#applySync(json),
       });
       this.#bindTransport(transport);
       this.#onlineRole = 'joiner';
+      this.#onlineDialog.showConnecting('Connected. Waiting for the list of colours…');
       this.#render();
-    } catch {
-      this.#onlineDialog.showError('Could not join that room. Check the code and try again.');
+    } catch (error) {
+      this.#resetOnlineState();
+      this.#onlineDialog.showStartError(
+        messageOf(error, 'Could not join that room. Check the code and try again.'),
+        this.#pendingRoom,
+      );
     }
   }
 
-  /** Applies the host's game snapshot on connecting. Trusted: it came from the host, not a paste box. */
+  /** Applies the host's game snapshot. Trusted: it came from the host, not a paste box. */
   #applySync(json: string): void {
     const result = fromJson(json, { maxBytes: this.#session.profile.maxImportBytes * 4 });
     if (!result.ok) return;
@@ -528,38 +557,58 @@ class App {
     this.#resetViewState();
   }
 
-  #leaveOnline(): void {
-    if (this.#onlineRole === 'offline') return;
-    this.#bindTransport(new LocalTransport());
+  /** Drops back to pass-and-play without touching the dialog. */
+  #resetOnlineState(): void {
+    if (!(this.#transport instanceof LocalTransport)) this.#bindTransport(new LocalTransport());
     this.#myColor = null;
     this.#remoteColors = new Set();
     this.#onlineRole = 'offline';
-    this.#onlineDialog.hide();
     this.#render();
-    this.#announcer.say('Left the online game. Playing locally.');
+  }
+
+  #leaveOnline(): void {
+    const wasOnline = this.#onlineRole !== 'offline';
+    this.#resetOnlineState();
+    this.#onlineDialog.hide();
+    if (wasOnline) this.#announcer.say('Left the online game. Playing locally.');
   }
 
   #handleRoomEvent(event: RoomEvent): void {
     switch (event.kind) {
+      case 'seatsOffered':
+        this.#onlineDialog.showSeatPicker(event.seats);
+        break;
       case 'assigned':
         this.#myColor = event.color;
-        this.#onlineDialog.showJoined(event.color);
-        this.#announcer.say(`Connected. You are playing ${COLOR_NAMES[event.color]}.`);
+        this.#onlineDialog.showJoined(event.color, this.#peer?.seats() ?? []);
+        this.#announcer.say(`You are playing ${COLOR_NAMES[event.color]}.`);
+        break;
+      case 'claimRejected':
+        this.#onlineDialog.showSeatPicker(event.seats);
+        this.#onlineDialog.showError(event.reason);
         break;
       case 'roster':
-        this.#remoteColors = new Set(event.colors.filter((color) => color !== this.#myColor));
-        this.#onlineDialog.updateRoster(event.colors);
+        this.#remoteColors = new Set(
+          event.seats.filter((seat) => seat.name && seat.color !== this.#myColor).map((seat) => seat.color),
+        );
+        this.#onlineDialog.updateRoster(event.seats);
         this.#render();
         break;
       case 'peerLeft':
-        this.#announcer.alert('A player disconnected. The game continues; they can rejoin with the same room code.');
+        this.#announcer.alert(`${event.name} left. Their colour is open again for anyone with the link.`);
         break;
       case 'disconnected':
         this.#announcer.alert(event.reason);
-        this.#leaveOnline();
+        this.#resetOnlineState();
+        this.#onlineDialog.showStartError(event.reason, this.#pendingRoom);
         break;
     }
   }
+}
+
+function messageOf(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : '';
+  return message && !message.includes('Error:') ? message : fallback;
 }
 
 function start(): void {
