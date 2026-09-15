@@ -89,7 +89,7 @@ export class OnlineDialog {
     nameInput.id = 'online-name-input';
     nameInput.type = 'text';
     nameInput.maxLength = 24;
-    nameInput.autocomplete = 'nickname';
+    nameInput.setAttribute('autocomplete', 'nickname');
     nameInput.className = 'player-name-input';
     nameInput.value = this.#name;
     nameInput.addEventListener('input', () => {
