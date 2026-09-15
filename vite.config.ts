@@ -1,12 +1,15 @@
 import { defineConfig, type Plugin } from 'vite';
 
 /**
- * A strict Content-Security-Policy is injected into the BUILT page only: the dev
- * server needs a websocket for hot reload, and shipping a policy that only holds
- * in development would be worse than useless.
+ * A Content-Security-Policy is injected into the BUILT page only: the dev
+ * server needs a websocket for hot reload, and shipping a policy that only
+ * holds in development would be worse than useless.
  *
- * `connect-src 'none'` is the important line — it makes "no third-party network
- * requests" a property the browser enforces, not just something we tested for.
+ * Online play (multiplayer/peerTransport.ts) connects to the public PeerJS
+ * broker to find the other three browsers, then talks directly over a WebRTC
+ * data channel. `connect-src` is scoped to exactly that: the PeerJS signalling
+ * host over websockets, and the STUN/TURN traffic WebRTC needs to punch
+ * through NATs. Nothing else this app does ever opens a network connection.
  */
 const CSP = [
   "default-src 'self'",
@@ -15,7 +18,7 @@ const CSP = [
   "img-src 'self' data:",
   "media-src 'self'",
   "font-src 'self'",
-  "connect-src 'none'",
+  "connect-src 'self' https://0.peerjs.com wss://0.peerjs.com stun: turn:",
   "form-action 'none'",
   "base-uri 'none'",
   "frame-ancestors 'none'",

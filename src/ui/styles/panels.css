@@ -374,6 +374,56 @@ button.toggle[aria-pressed='true']::before {
   resize: vertical;
 }
 
+.online-dialog .online-join-row {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.room-code-input,
+.room-link-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.room-code-input {
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+.room-code-display {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-align: center;
+  margin: 8px 0;
+}
+
+.room-link-input {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.online-roster {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.online-error {
+  color: var(--red);
+}
+
 @media (max-width: 560px) {
   .control-group {
     width: 100%;

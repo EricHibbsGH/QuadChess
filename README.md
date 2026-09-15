@@ -1,9 +1,11 @@
 # QuadChess
 
-Four-player chess for four people sitting at one device. The whole game — rules
-engine, board, artwork and sounds — runs inside the page. There is no server, no
-account, no database and no analytics, and after the page has loaded the app
-makes no network requests at all.
+Four-player chess for four people, either sitting at one device (pass and play)
+or playing online across four separate computers. The whole game — rules
+engine, board, artwork and sounds — runs inside the page. There is no account,
+no database and no analytics. Online play connects browsers directly to each
+other over WebRTC using the public PeerJS broker only to introduce them; there
+is no game server of ours in the middle.
 
 ![Board screenshot placeholder](docs/screenshot-desktop.png)
 ![Mobile screenshot placeholder](docs/screenshot-mobile.png)
@@ -106,56 +108,56 @@ Once Pages is enabled the game lives at:
 Share that link with anyone. There is nothing to install and no account to make —
 it opens and plays straight away, on a phone, tablet or computer.
 
-**How four people actually play:** all four take turns on **one** screen. The app
-shows whose turn it is, only lets that player move, and hides nothing, so pass the
-device (or gather round one laptop) and play. This is "pass and play".
+**How four people actually play:** all four can take turns on **one** screen
+(pass and play), or one player can choose **Play online** in the toolbar to host
+a room and share the generated link or room code with the other three. Each of
+them opens the link (or enters the code), and moves made on any of the four
+screens appear on all of them.
 
-**What the link does not do:** it does not connect four separate devices
-together. If four friends each open the link, each of them gets their own
-separate game — moves made on one screen never appear on another. There is no
-server behind this, so there is nothing to connect them through. See the section
-below.
+Hosting and joining talk to the public PeerJS signalling broker
+(`0.peerjs.com`) just long enough to connect the browsers to each other; after
+that, moves travel directly between the four browsers over WebRTC.
 
-If you want to play a game across distance, the practical options are to share
-one screen over a video call, or to use the **Save / load** button to copy the
-game text to each other between turns.
+If you would rather not use online play, **Save / load** still lets you copy
+the game text between players between turns.
 
-## Offline and privacy behaviour
+## Network and privacy behaviour
 
-- After the initial page load the app makes **no network requests**. The browser
-  tests assert this, and the built page ships a
-  `Content-Security-Policy` with `connect-src 'none'`, so the browser enforces it
-  rather than us merely testing for it.
+- In pass-and-play mode the app makes **no network requests** after the initial
+  page load.
+- Online play opens a connection to the public PeerJS broker (`0.peerjs.com`)
+  to find the other players, then a direct peer-to-peer WebRTC data channel
+  between browsers. No game state is sent to, or stored on, any server of ours.
+  The built page ships a `Content-Security-Policy` that only allows network
+  connections to that broker and to STUN/TURN, so the browser enforces this
+  boundary rather than us merely testing for it.
 - All JavaScript, CSS, piece artwork and sounds are in this repository. Piece
   artwork is inline SVG authored for this project; the six sound cues are
-  original WAV files. Nothing is loaded from a CDN. See [NOTICES.md](NOTICES.md).
-- Your game and preferences are stored in **your browser's `localStorage`** only.
-  Nothing is uploaded. Clearing site data deletes them.
+  original WAV files. Nothing is loaded from a CDN except the PeerJS library
+  itself (bundled at build time, not loaded from a CDN at runtime). See
+  [NOTICES.md](NOTICES.md).
+- Your game and preferences are stored in **your browser's `localStorage`**
+  only. Nothing is uploaded. Clearing site data deletes them.
 - No analytics, no telemetry, no cookies, no accounts.
 
 ## Pass-and-play versus online multiplayer
 
-This is the important distinction, so it is stated plainly:
-
 | | Supported? |
 |---|---|
-| **Pass and play** — four people taking turns at one device, in one browser tab | **Yes.** This is the whole product. |
-| **Online multiplayer** — four people on four devices | **No.** |
-
-There is no server, no signalling service and no networking code. `LocalTransport`
-is the only transport that exists.
+| **Pass and play** — four people taking turns at one device, in one browser tab | **Yes.** |
+| **Online multiplayer** — four people on four devices | **Yes**, via **Play online** in the toolbar. |
 
 The engine is written behind a `Transport` interface
-([`src/multiplayer/transport.ts`](src/multiplayer/transport.ts)) so a networked
-transport *could* be added later without changing a single rule. That is a design
-boundary, not a feature. Any real online play would still need signalling
-infrastructure that this project deliberately does not provide, and adding
-WebRTC would not change that — WebRTC still requires a signalling channel you
-supply yourself.
+([`src/multiplayer/transport.ts`](src/multiplayer/transport.ts)) so the rules
+engine never knows whether it is talking to `LocalTransport` (pass and play, in
+process) or `PeerTransport` (online, over WebRTC) — see
+[`src/multiplayer/peerTransport.ts`](src/multiplayer/peerTransport.ts).
 
 ## Known limitations
 
-- **Online play does not work**, as above.
+- **Online play needs all four browsers to reach the public PeerJS broker and
+  each other directly.** Very restrictive corporate firewalls can block WebRTC;
+  there is no fallback relay server.
 - **Clocks are off by default.** Timeout behaviour is implemented and tested, but
   no time control is configured in either shipped profile (rules.md AMB-11).
 - **Insufficient-material draws are not detected.** With up to four armies and

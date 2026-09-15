@@ -18,7 +18,11 @@ export interface ControlCallbacks {
   readonly onResign: () => void;
   readonly onDraw: () => void;
   readonly onTransfer: () => void;
+  readonly onOnline: () => void;
 }
+
+/** `joiner` cannot restart the game or change rules; only the host can. */
+export type OnlineRole = 'offline' | 'host' | 'joiner';
 
 export interface ControlsModel {
   readonly profile: RulesProfile;
@@ -29,6 +33,7 @@ export interface ControlsModel {
   readonly showCoordinates: boolean;
   readonly viewSeat: Seat;
   readonly orientationLabel: string;
+  readonly onlineRole: OnlineRole;
 }
 
 function button(label: string, className: string, onClick: () => void): HTMLButtonElement {
@@ -42,6 +47,7 @@ function button(label: string, className: string, onClick: () => void): HTMLButt
 
 export class Controls {
   #profileSelect: HTMLSelectElement;
+  #newGame: HTMLButtonElement;
   #undo: HTMLButtonElement;
   #redo: HTMLButtonElement;
   #resign: HTMLButtonElement;
@@ -49,6 +55,8 @@ export class Controls {
   #rotate: HTMLButtonElement;
   #sound: HTMLButtonElement;
   #coords: HTMLButtonElement;
+  #transfer: HTMLButtonElement;
+  #online: HTMLButtonElement;
 
   constructor(root: HTMLElement, callbacks: ControlCallbacks) {
     const bar = document.createElement('div');
@@ -78,7 +86,7 @@ export class Controls {
       callbacks.onProfileChange(this.#profileSelect.value);
     });
 
-    gameGroup.append(profileLabel, this.#profileSelect, button('New game', 'primary', callbacks.onNewGame));
+    gameGroup.append(profileLabel, this.#profileSelect, (this.#newGame = button('New game', 'primary', callbacks.onNewGame)));
 
     // --- move group ---
     const moveGroup = document.createElement('div');
@@ -107,18 +115,31 @@ export class Controls {
       const next = this.#coords.getAttribute('aria-pressed') !== 'true';
       callbacks.onToggleCoordinates(next);
     });
-    viewGroup.append(this.#rotate, this.#sound, this.#coords, button('Save / load', 'secondary', callbacks.onTransfer));
+    viewGroup.append(this.#rotate, this.#sound, this.#coords, (this.#transfer = button('Save / load', 'secondary', callbacks.onTransfer)));
 
-    bar.append(gameGroup, moveGroup, viewGroup);
+    // --- online group ---
+    const onlineGroup = document.createElement('div');
+    onlineGroup.className = 'control-group';
+    onlineGroup.setAttribute('role', 'group');
+    onlineGroup.setAttribute('aria-label', 'Online play');
+    this.#online = button('Play online', 'secondary', callbacks.onOnline);
+    onlineGroup.append(this.#online);
+
+    bar.append(gameGroup, moveGroup, viewGroup, onlineGroup);
     root.appendChild(bar);
   }
 
   render(model: ControlsModel): void {
     this.#profileSelect.value = model.profile.id;
-    this.#undo.disabled = !model.canUndo;
-    this.#redo.disabled = !model.canRedo;
+    const isJoiner = model.onlineRole === 'joiner';
+    this.#profileSelect.disabled = isJoiner;
+    this.#newGame.disabled = isJoiner;
+    this.#undo.disabled = !model.canUndo || model.onlineRole !== 'offline';
+    this.#redo.disabled = !model.canRedo || model.onlineRole !== 'offline';
+    this.#transfer.disabled = model.onlineRole !== 'offline';
     this.#resign.disabled = model.finished;
     this.#draw.disabled = model.finished;
+    this.#online.textContent = model.onlineRole === 'offline' ? 'Play online' : 'Leave online game';
 
     this.#sound.setAttribute('aria-pressed', model.sound ? 'true' : 'false');
     this.#sound.textContent = model.sound ? 'Sound on' : 'Sound off';
