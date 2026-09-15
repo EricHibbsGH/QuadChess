@@ -206,13 +206,17 @@ export class OnlineDialog {
     leave.textContent = 'Close room';
     leave.addEventListener('click', () => this.#callbacks?.onLeave());
 
+    const warning = document.createElement('p');
+    warning.className = 'online-note';
+    warning.textContent = 'Keep this tab open. The link stops working as soon as you close it.';
+
     const done = document.createElement('button');
     done.type = 'button';
     done.className = 'primary';
     done.textContent = 'Start playing';
     done.addEventListener('click', () => this.hide());
 
-    this.#body.append(help, link, copy, codeHelp, code, this.#rosterList(seats), done, leave);
+    this.#body.append(help, link, copy, codeHelp, code, this.#rosterList(seats), warning, done, leave);
   }
 
   /** Joiner lobby: the open colours, offered as buttons. */

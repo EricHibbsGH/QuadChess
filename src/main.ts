@@ -134,7 +134,12 @@ class App {
     if (roomFromUrl) {
       this.#pendingRoom = roomFromUrl.trim().toUpperCase();
       this.#openLobby();
+      return;
     }
+
+    // A host who reloads keeps the same code, so links already shared still work.
+    const previous = readHostSession();
+    if (previous) void this.#hostOnline(previous.name, previous.roomCode);
   }
 
   // ----------------------------------------------------------------------
@@ -494,13 +499,14 @@ class App {
     this.#unbindTransport = this.#transport.onRemote((intent) => this.#applyIntent(intent));
   }
 
-  async #hostOnline(name: string): Promise<void> {
+  async #hostOnline(name: string, reuseCode?: string): Promise<void> {
     this.#playerName = name;
-    this.#onlineDialog.showConnecting('Creating your room…');
+    this.#onlineDialog.showConnecting(reuseCode ? 'Reopening your room…' : 'Creating your room…');
     try {
       const { transport, roomCode, hostColor } = await PeerTransport.host({
         seats: this.#session.profile.turnOrder,
         playerName: name,
+        ...(reuseCode ? { roomCode: reuseCode } : {}),
         onRoomEvent: (event) => this.#handleRoomEvent(event),
         getSyncPayload: () => toJson(this.#session.state),
       });
@@ -508,8 +514,10 @@ class App {
       this.#myColor = hostColor;
       this.#remoteColors = new Set();
       this.#onlineRole = 'host';
-      // Online play needs every peer starting from the same position.
-      void this.#transport.send({ kind: 'reset', profileId: this.#session.profile.id });
+      writeHostSession(roomCode, name);
+      // Online play needs every peer starting from the same position. A reopened
+      // room keeps the game that was already in progress.
+      if (!reuseCode) void this.#transport.send({ kind: 'reset', profileId: this.#session.profile.id });
 
       const joinUrl = new URL(window.location.href);
       joinUrl.search = `?room=${roomCode}`;
@@ -517,6 +525,7 @@ class App {
       this.#render();
       this.#announcer.say(`Room ${roomCode} is open. You are playing ${COLOR_NAMES[hostColor]}.`);
     } catch (error) {
+      clearHostSession();
       this.#resetOnlineState();
       this.#onlineDialog.showStartError(messageOf(error, 'Could not start a room. Check your connection and try again.'));
     }
@@ -568,6 +577,7 @@ class App {
 
   #leaveOnline(): void {
     const wasOnline = this.#onlineRole !== 'offline';
+    clearHostSession();
     this.#resetOnlineState();
     this.#onlineDialog.hide();
     if (wasOnline) this.#announcer.say('Left the online game. Playing locally.');
@@ -609,6 +619,39 @@ class App {
 function messageOf(error: unknown, fallback: string): string {
   const message = error instanceof Error ? error.message : '';
   return message && !message.includes('Error:') ? message : fallback;
+}
+
+const HOST_SESSION_KEY = 'quadchess.hostRoom';
+
+/** Session storage, not local: the room dies with the tab, so the record should too. */
+function readHostSession(): { roomCode: string; name: string } | null {
+  try {
+    const raw = sessionStorage.getItem(HOST_SESSION_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const { roomCode, name } = parsed as { roomCode?: unknown; name?: unknown };
+    if (typeof roomCode !== 'string' || typeof name !== 'string') return null;
+    return { roomCode, name };
+  } catch {
+    return null;
+  }
+}
+
+function writeHostSession(roomCode: string, name: string): void {
+  try {
+    sessionStorage.setItem(HOST_SESSION_KEY, JSON.stringify({ roomCode, name }));
+  } catch {
+    // Private-browsing quota failures only cost the reload convenience.
+  }
+}
+
+function clearHostSession(): void {
+  try {
+    sessionStorage.removeItem(HOST_SESSION_KEY);
+  } catch {
+    // As above.
+  }
 }
 
 function start(): void {

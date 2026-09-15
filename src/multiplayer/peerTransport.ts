@@ -19,9 +19,17 @@ import type { IntentHandler, MoveIntent, Transport } from './transport.js';
 const ROOM_PREFIX = 'quadchess-';
 /** Excludes 0/O/1/I, which are easy to mis-type or mis-read aloud. */
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const CONNECT_TIMEOUT_MS = 20_000;
+const OPEN_TIMEOUT_MS = 15_000;
+const JOIN_TIMEOUT_MS = 12_000;
 const MAX_NAME_LENGTH = 24;
 const FALLBACK_NAME = 'Player';
+
+/** PeerJS error types that mean the socket dropped, not that the room is gone. */
+const TRANSIENT_ERRORS = new Set(['network', 'socket-error', 'socket-closed', 'disconnected']);
+
+function errorType(error: unknown): string {
+  return typeof error === 'object' && error !== null && 'type' in error ? String(error.type) : '';
+}
 
 export function randomRoomCode(): string {
   const bytes = new Uint32Array(6);
@@ -65,6 +73,8 @@ export interface PeerTransportOptions {
   readonly seats: readonly PlayerColor[];
   /** Host only: the colour the host claims for themselves. */
   readonly hostColor?: PlayerColor;
+  /** Host only: reuse an existing code so a shared link survives a page reload. */
+  readonly roomCode?: string;
   readonly playerName: string;
   readonly onRoomEvent: (event: RoomEvent) => void;
   /** Host only: the current game as JSON, sent to every newly-seated joiner. */
@@ -73,9 +83,9 @@ export interface PeerTransportOptions {
   readonly onSync?: (json: string) => void;
 }
 
-function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+function withTimeout<T>(promise: Promise<T>, message: string, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(message)), CONNECT_TIMEOUT_MS);
+    const timer = setTimeout(() => reject(new Error(message)), ms);
     promise.then(
       (value) => {
         clearTimeout(timer);
@@ -95,7 +105,8 @@ function waitForOpen(peer: Peer): Promise<void> {
       peer.on('open', () => resolve());
       peer.on('error', (err) => reject(err));
     }),
-    'Could not reach the matchmaking service.',
+    'Could not reach the matchmaking service. Check your connection and try again.',
+    OPEN_TIMEOUT_MS,
   );
 }
 
@@ -130,20 +141,39 @@ export class PeerTransport implements Transport {
     const hostColor = options.hostColor ?? options.seats[0];
     if (!hostColor) throw new Error('the rules profile has no seats');
 
-    const roomCode = randomRoomCode();
+    const roomCode = options.roomCode ?? randomRoomCode();
     const peer = new Peer(ROOM_PREFIX + roomCode);
     const transport = new PeerTransport(peer, true, options);
     await waitForOpen(peer);
 
     transport.#names.set(hostColor, sanitizeName(options.playerName) || FALLBACK_NAME);
     peer.on('connection', (conn) => transport.#acceptJoiner(conn));
-    peer.on('error', (err) =>
-      transport.#onRoomEvent({ kind: 'disconnected', reason: err.message || 'The room connection failed.' }),
-    );
-    peer.on('disconnected', () =>
-      transport.#onRoomEvent({ kind: 'disconnected', reason: 'Lost the connection to the matchmaking service.' }),
-    );
+    transport.#keepAlive();
     return { transport, roomCode, hostColor };
+  }
+
+  /**
+   * The broker drops idle signalling sockets even while the tab is open, which
+   * de-registers the room and makes the shared link fail with `peer-unavailable`.
+   * Reconnect instead of ending the game; existing data channels are unaffected.
+   */
+  #keepAlive(): void {
+    this.#peer.on('disconnected', () => {
+      if (this.#closed || this.#peer.destroyed) return;
+      try {
+        this.#peer.reconnect();
+      } catch {
+        this.#onRoomEvent({ kind: 'disconnected', reason: 'Lost the connection to the other players.' });
+      }
+    });
+
+    this.#peer.on('error', (err) => {
+      if (this.#closed) return;
+      if (TRANSIENT_ERRORS.has(errorType(err))) return;
+      // A joiner asking for a room that has gone is their problem, not ours.
+      if (errorType(err) === 'peer-unavailable' && this.#isHost) return;
+      this.#onRoomEvent({ kind: 'disconnected', reason: err.message || 'The room connection failed.' });
+    });
   }
 
   /** Resolves once connected to the host. The caller then waits for `seatsOffered`. */
@@ -155,17 +185,26 @@ export class PeerTransport implements Transport {
     const conn = peer.connect(ROOM_PREFIX + roomCode.trim().toUpperCase(), { reliable: true });
     transport.#hostConnection = conn;
 
-    await withTimeout(
-      new Promise<void>((resolve, reject) => {
-        conn.on('open', () => resolve());
-        conn.on('error', (err) => reject(err));
-        // An unknown room code surfaces as `peer-unavailable` on the peer, not on
-        // the connection, so without this listener the join would wait forever.
-        peer.on('error', (err) => reject(err));
-      }),
-      'No game found with that code. Check it and try again.',
-    );
+    try {
+      await withTimeout(
+        new Promise<void>((resolve, reject) => {
+          conn.on('open', () => resolve());
+          conn.on('error', (err) => reject(err));
+          // An unknown room surfaces as `peer-unavailable` on the peer, not on the
+          // connection, so without this listener the join would wait forever.
+          peer.on('error', (err) => reject(err));
+        }),
+        'That game did not answer. The host may have closed their tab.',
+        JOIN_TIMEOUT_MS,
+      );
+    } catch (error) {
+      peer.destroy();
+      throw errorType(error) === 'peer-unavailable'
+        ? new Error('No open game with that code. Room codes only last while the host keeps their tab open, so ask them for a fresh link.')
+        : error;
+    }
 
+    transport.#keepAlive();
     conn.on('data', (data) => transport.#handleWire(data as WireMessage));
     conn.on('close', () =>
       transport.#onRoomEvent({ kind: 'disconnected', reason: 'The host ended the game.' }),

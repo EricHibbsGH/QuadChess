@@ -467,6 +467,11 @@ button.toggle[aria-pressed='true']::before {
   font-weight: 600;
 }
 
+.online-note {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
 @media (max-width: 560px) {
   .control-group {
     width: 100%;
