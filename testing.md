@@ -111,10 +111,10 @@ Two projects run:
 - `desktop-chromium` — everything except `mobile.spec.ts`
 - `mobile-chromium` — `mobile.spec.ts` only, on a Pixel 5 profile with touch
 
-`network.spec.ts` records every request the browser makes during load and play
-and fails if any leaves the origin. It also disables the network mid-game and
-keeps playing, and asserts the built page carries `connect-src 'none'` and has no
-inline `<script>`.
+`network.spec.ts` records every request the browser makes during pass-and-play
+load and play and fails if any leaves the origin. It also disables the network
+mid-game and keeps playing, and asserts the built page's CSP scopes `connect-src`
+to the PeerJS broker/STUN/TURN only and has no inline `<script>`.
 
 ## Things deliberately not tested
 

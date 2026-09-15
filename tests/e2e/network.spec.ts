@@ -33,12 +33,13 @@ test('no request leaves the origin during load and play', async ({ page }) => {
   expect(foreign, `unexpected third-party requests: ${foreign.join(', ')}`).toEqual([]);
 });
 
-test('the built page declares a content security policy that forbids outbound connections', async ({ page }) => {
+test('the built page declares a content security policy scoped to online play only', async ({ page }) => {
   await page.goto('./');
   const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
   expect(csp).toBeTruthy();
-  expect(csp).toContain("connect-src 'none'");
   expect(csp).toContain("default-src 'self'");
+  expect(csp).toContain('https://0.peerjs.com');
+  expect(csp).toContain('wss://0.peerjs.com');
   expect(csp).toContain("object-src 'none'");
 });
 

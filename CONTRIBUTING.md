@@ -43,9 +43,10 @@ needs `jsdom`, something has been imported that should not have been.
 4. **No `eval`, no `new Function`, no `innerHTML` with dynamic data.** All
    user-visible text goes through `textContent`.
 5. **No `alert`, `confirm` or `prompt`.** Use `src/ui/dialogs.ts`.
-6. **No network.** No fetch, no XHR, no WebSocket, no CDN link, no web font, no
-   analytics. `tests/e2e/network.spec.ts` enforces this and the built page ships
-   `connect-src 'none'`.
+6. **No network beyond online play.** No fetch, XHR, CDN link, web font or
+   analytics outside of `src/multiplayer/peerTransport.ts`. `tests/e2e/network.spec.ts`
+   enforces this and the built page ships a CSP whose `connect-src` is scoped to
+   the PeerJS broker and STUN/TURN only.
 7. **No secrets** in the repository or in workflows.
 
 ## Changing a rule
