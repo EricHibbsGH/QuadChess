@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="Four-player chess for four people at one device. Runs entirely offline with no server, no accounts and no tracking."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <title>Four-Player Chess</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#board-region">Skip to the board</a>
+
+    <header class="page-header">
+      <h1>Four-Player Chess</h1>
+      <p class="tagline">
+        Four players, one device. Everything runs in this page — no server, no network, no accounts.
+      </p>
+    </header>
+
+    <div id="controls"></div>
+
+    <main class="layout">
+      <section id="board-region" class="board-region" aria-labelledby="board-heading">
+        <h2 id="board-heading" class="sr-only">Board</h2>
+        <div id="board" class="board"></div>
+      </section>
+
+      <aside class="side-panel">
+        <section class="panel" aria-labelledby="status-heading">
+          <h2 id="status-heading">Status</h2>
+          <div id="status"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="moves-heading">
+          <h2 id="moves-heading">Move history</h2>
+          <div id="moves"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="help-heading">
+          <h2 id="help-heading">Keyboard</h2>
+          <dl class="key-help">
+            <dt>Arrow keys</dt>
+            <dd>Move between squares, skipping the missing corners</dd>
+            <dt>Enter or Space</dt>
+            <dd>Select a piece, then choose a highlighted destination</dd>
+            <dt>Escape</dt>
+            <dd>Cancel the current selection</dd>
+            <dt>Home / End</dt>
+            <dd>Jump to the start or end of the current row</dd>
+            <dt>Tab</dt>
+            <dd>Move between the board and the controls</dd>
+          </dl>
+        </section>
+
+        <section class="panel" aria-labelledby="about-heading">
+          <h2 id="about-heading">About this game</h2>
+          <p>
+            Pass and play: each player takes their turn on this device. Online play is
+            <strong>not</strong> supported — there is no server to connect to.
+          </p>
+          <p>
+            Your game is saved in this browser only. Nothing is uploaded anywhere.
+          </p>
+        </section>
+      </aside>
+    </main>
+
+    <div id="live-polite" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div id="live-assertive" class="sr-only" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

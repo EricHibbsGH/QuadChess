@@ -1,0 +1,25 @@
+node_modules/
+dist/
+dist-ssr/
+coverage/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local env files: no secrets belong in this repository
+.env
+.env.*
+!.env.example
+
+*.local
+*.log
