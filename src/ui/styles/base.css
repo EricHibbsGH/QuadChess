@@ -1,14 +1,14 @@
 /* Layout, typography and shared tokens. */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
-  --bg: #f4f1ea;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #ebe6db;
-  --text: #1c1a17;
-  --text-muted: #55504a;
-  --border: #c8c0b2;
+  --surface-2: #f4f5f7;
+  --text: #1c1f24;
+  --text-muted: #565d68;
+  --line: #e2e5ea;
   --focus: #0b63c5;
 
   --red: #c1384b;
@@ -18,7 +18,7 @@
 
   --red-ink: #ffffff;
   --blue-ink: #ffffff;
-  --yellow-ink: #1c1a17;
+  --yellow-ink: #1c1f24;
   --green-ink: #ffffff;
 
   --radius: 8px;
@@ -27,28 +27,6 @@
 
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16181c;
-    --surface: #212429;
-    --surface-2: #2a2e35;
-    --text: #f2f0ec;
-    --text-muted: #b6b1a9;
-    --border: #414751;
-    --focus: #7fb4ff;
-
-    --red: #e2687a;
-    --blue: #6f9fd8;
-    --yellow: #e0b45c;
-    --green: #63b98a;
-
-    --red-ink: #16181c;
-    --blue-ink: #16181c;
-    --yellow-ink: #16181c;
-    --green-ink: #16181c;
-  }
 }
 
 * {

@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
 
 /**
  * A Content-Security-Policy is injected into the BUILT page only: the dev
@@ -48,7 +49,7 @@ function cspPlugin(): Plugin {
  */
 export default defineConfig({
   base: process.env['VITE_BASE'] ?? './',
-  plugins: [cspPlugin()],
+  plugins: [tailwindcss(), cspPlugin()],
   build: {
     target: 'es2022',
     outDir: 'dist',

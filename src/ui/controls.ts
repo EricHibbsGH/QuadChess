@@ -75,7 +75,7 @@ export class Controls {
 
     this.#profileSelect = document.createElement('select');
     this.#profileSelect.id = 'profile-select';
-    this.#profileSelect.className = 'profile-select';
+    this.#profileSelect.className = 'select profile-select';
     for (const profile of PROFILES) {
       const option = document.createElement('option');
       option.value = profile.id;
@@ -86,7 +86,7 @@ export class Controls {
       callbacks.onProfileChange(this.#profileSelect.value);
     });
 
-    gameGroup.append(profileLabel, this.#profileSelect, (this.#newGame = button('New game', 'primary', callbacks.onNewGame)));
+    gameGroup.append(profileLabel, this.#profileSelect, (this.#newGame = button('New game', 'btn btn-primary', callbacks.onNewGame)));
 
     // --- move group ---
     const moveGroup = document.createElement('div');
@@ -94,10 +94,10 @@ export class Controls {
     moveGroup.setAttribute('role', 'group');
     moveGroup.setAttribute('aria-label', 'Moves');
 
-    this.#undo = button('Undo', 'secondary', callbacks.onUndo);
-    this.#redo = button('Redo', 'secondary', callbacks.onRedo);
-    this.#resign = button('Resign', 'danger', callbacks.onResign);
-    this.#draw = button('Offer draw', 'secondary', callbacks.onDraw);
+    this.#undo = button('Undo', 'btn', callbacks.onUndo);
+    this.#redo = button('Redo', 'btn', callbacks.onRedo);
+    this.#resign = button('Resign', 'btn btn-error', callbacks.onResign);
+    this.#draw = button('Offer draw', 'btn', callbacks.onDraw);
     moveGroup.append(this.#undo, this.#redo, this.#resign, this.#draw);
 
     // --- view group ---
@@ -106,23 +106,23 @@ export class Controls {
     viewGroup.setAttribute('role', 'group');
     viewGroup.setAttribute('aria-label', 'View');
 
-    this.#rotate = button('Rotate board', 'secondary', callbacks.onRotate);
-    this.#sound = button('Sound', 'secondary toggle', () => {
+    this.#rotate = button('Rotate board', 'btn', callbacks.onRotate);
+    this.#sound = button('Sound', 'btn pressable', () => {
       const next = this.#sound.getAttribute('aria-pressed') !== 'true';
       callbacks.onToggleSound(next);
     });
-    this.#coords = button('Coordinates', 'secondary toggle', () => {
+    this.#coords = button('Coordinates', 'btn pressable', () => {
       const next = this.#coords.getAttribute('aria-pressed') !== 'true';
       callbacks.onToggleCoordinates(next);
     });
-    viewGroup.append(this.#rotate, this.#sound, this.#coords, (this.#transfer = button('Save / load', 'secondary', callbacks.onTransfer)));
+    viewGroup.append(this.#rotate, this.#sound, this.#coords, (this.#transfer = button('Save / load', 'btn', callbacks.onTransfer)));
 
     // --- online group ---
     const onlineGroup = document.createElement('div');
     onlineGroup.className = 'control-group';
     onlineGroup.setAttribute('role', 'group');
     onlineGroup.setAttribute('aria-label', 'Online play');
-    this.#online = button('Play online', 'secondary', callbacks.onOnline);
+    this.#online = button('Play online', 'btn', callbacks.onOnline);
     onlineGroup.append(this.#online);
 
     bar.append(gameGroup, moveGroup, viewGroup, onlineGroup);

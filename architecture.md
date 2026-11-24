@@ -59,7 +59,7 @@ QuadChess/
 |  |  |- accessibility.ts         # square descriptions + live-region announcer
 |  |  |- pieceSprites.ts          # original inline SVG piece artwork
 |  |  |- sound.ts                 # local WAV cues, priority selection
-|  |  \- styles/{base,board,panels}.css
+|  |  \- styles/{daisy,base,board,panels}.css   # daisy.css: Tailwind + daisyUI theme
 |  |- storage/localGameStore.ts   # localStorage autosave + preferences
 |  |- multiplayer/
 |  |  |- transport.ts             # the seam

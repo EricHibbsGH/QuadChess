@@ -58,7 +58,9 @@ which are rendered by the platform font, and plain text characters elsewhere.
 ## Third-party software
 
 All third-party code is a **development dependency only**. None of it is shipped
-in `dist/` as vendor code beyond what Vite emits from this project's own sources.
+in `dist/` as vendor code beyond what Vite emits from this project's own sources,
+with one exception: the component and utility CSS that Tailwind CSS and daisyUI
+generate is compiled into the shipped stylesheet (both MIT).
 
 | Package | Purpose | Licence |
 |---|---|---|
@@ -69,6 +71,8 @@ in `dist/` as vendor code beyond what Vite emits from this project's own sources
 | `@playwright/test` | Browser testing | Apache-2.0 |
 | `jsdom` | DOM environment for tests | MIT |
 | `@types/node` | Node type definitions | MIT |
+| `tailwindcss`, `@tailwindcss/vite` | CSS build (theme and utilities, no preflight) | MIT |
+| `daisyui` | UI components: buttons, selects, inputs, textarea | MIT |
 
 Run `npm ls --all` for the full resolved tree, and `npm ls --all --long` for the
 licence of every transitive dependency.

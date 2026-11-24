@@ -77,7 +77,7 @@ export class Dialogs {
 
       const cancel = document.createElement('button');
       cancel.type = 'button';
-      cancel.className = 'secondary';
+      cancel.className = 'btn';
       cancel.textContent = 'Cancel move';
       cancel.addEventListener('click', () => finish(null));
 
@@ -125,13 +125,13 @@ export class Dialogs {
 
       const cancel = document.createElement('button');
       cancel.type = 'button';
-      cancel.className = 'secondary';
+      cancel.className = 'btn';
       cancel.textContent = 'Cancel';
       cancel.addEventListener('click', () => finish(false));
 
       const confirm = document.createElement('button');
       confirm.type = 'button';
-      confirm.className = options.danger ? 'danger' : 'primary';
+      confirm.className = options.danger ? 'btn btn-error' : 'btn btn-primary';
       confirm.textContent = escapeText(options.confirmLabel);
       confirm.addEventListener('click', () => finish(true));
 
@@ -170,7 +170,7 @@ export class Dialogs {
       };
       const ok = document.createElement('button');
       ok.type = 'button';
-      ok.className = 'primary';
+      ok.className = 'btn btn-primary';
       ok.textContent = 'Close';
       ok.addEventListener('click', finish);
       actions.appendChild(ok);
@@ -207,7 +207,7 @@ export class Dialogs {
 
     const area = document.createElement('textarea');
     area.id = 'transfer-text';
-    area.className = 'transfer-text';
+    area.className = 'textarea transfer-text';
     area.rows = 12;
     area.spellcheck = false;
     area.value = currentJson;
@@ -227,13 +227,13 @@ export class Dialogs {
 
       const cancel = document.createElement('button');
       cancel.type = 'button';
-      cancel.className = 'secondary';
+      cancel.className = 'btn';
       cancel.textContent = 'Close';
       cancel.addEventListener('click', () => finish(null));
 
       const copy = document.createElement('button');
       copy.type = 'button';
-      copy.className = 'secondary';
+      copy.className = 'btn';
       copy.textContent = 'Select all';
       copy.addEventListener('click', () => {
         area.focus();
@@ -242,7 +242,7 @@ export class Dialogs {
 
       const load = document.createElement('button');
       load.type = 'button';
-      load.className = 'primary';
+      load.className = 'btn btn-primary';
       load.textContent = 'Load';
       load.addEventListener('click', () => finish(area.value));
 

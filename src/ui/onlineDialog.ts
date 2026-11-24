@@ -90,7 +90,7 @@ export class OnlineDialog {
     nameInput.type = 'text';
     nameInput.maxLength = 24;
     nameInput.setAttribute('autocomplete', 'nickname');
-    nameInput.className = 'player-name-input';
+    nameInput.className = 'input player-name-input';
     nameInput.value = this.#name;
     nameInput.addEventListener('input', () => {
       this.#name = nameInput.value;
@@ -106,12 +106,12 @@ export class OnlineDialog {
     codeInput.placeholder = 'ABC123';
     codeInput.autocapitalize = 'characters';
     codeInput.maxLength = 6;
-    codeInput.className = 'room-code-input';
+    codeInput.className = 'input room-code-input';
     codeInput.value = prefilledRoom;
 
     const join = document.createElement('button');
     join.type = 'button';
-    join.className = prefilledRoom ? 'primary' : 'secondary';
+    join.className = prefilledRoom ? 'btn btn-primary' : 'btn';
     join.textContent = 'Join game';
     join.addEventListener('click', () => {
       const code = codeInput.value.trim();
@@ -126,7 +126,7 @@ export class OnlineDialog {
 
     const host = document.createElement('button');
     host.type = 'button';
-    host.className = prefilledRoom ? 'secondary' : 'primary';
+    host.className = prefilledRoom ? 'btn' : 'btn btn-primary';
     host.textContent = 'Host a new game';
     host.addEventListener('click', () => {
       if (!this.#requireName(nameInput)) return;
@@ -135,7 +135,7 @@ export class OnlineDialog {
 
     const cancel = document.createElement('button');
     cancel.type = 'button';
-    cancel.className = 'secondary';
+    cancel.className = 'btn';
     cancel.textContent = 'Cancel';
     cancel.addEventListener('click', () => this.#close());
 
@@ -174,13 +174,13 @@ export class OnlineDialog {
     const link = document.createElement('input');
     link.type = 'text';
     link.readOnly = true;
-    link.className = 'room-link-input';
+    link.className = 'input room-link-input';
     link.value = joinUrl;
     link.addEventListener('focus', () => link.select());
 
     const copy = document.createElement('button');
     copy.type = 'button';
-    copy.className = 'secondary';
+    copy.className = 'btn';
     copy.textContent = 'Copy link';
     copy.addEventListener('click', () => {
       void navigator.clipboard?.writeText(joinUrl).then(
@@ -202,7 +202,7 @@ export class OnlineDialog {
 
     const leave = document.createElement('button');
     leave.type = 'button';
-    leave.className = 'danger';
+    leave.className = 'btn btn-error';
     leave.textContent = 'Close room';
     leave.addEventListener('click', () => this.#callbacks?.onLeave());
 
@@ -212,7 +212,7 @@ export class OnlineDialog {
 
     const done = document.createElement('button');
     done.type = 'button';
-    done.className = 'primary';
+    done.className = 'btn btn-primary';
     done.textContent = 'Start playing';
     done.addEventListener('click', () => this.hide());
 
@@ -243,7 +243,7 @@ export class OnlineDialog {
       } else {
         const pick = document.createElement('button');
         pick.type = 'button';
-        pick.className = 'secondary seat-open';
+        pick.className = 'btn btn-sm seat-open';
         pick.dataset['color'] = seat.color;
         pick.textContent = `Play as ${label}`;
         pick.addEventListener('click', () => this.#callbacks?.onClaim(seat.color));
@@ -254,7 +254,7 @@ export class OnlineDialog {
 
     const leave = document.createElement('button');
     leave.type = 'button';
-    leave.className = 'secondary';
+    leave.className = 'btn';
     leave.textContent = 'Leave';
     leave.addEventListener('click', () => this.#callbacks?.onLeave());
 
@@ -270,13 +270,13 @@ export class OnlineDialog {
 
     const leave = document.createElement('button');
     leave.type = 'button';
-    leave.className = 'danger';
+    leave.className = 'btn btn-error';
     leave.textContent = 'Leave game';
     leave.addEventListener('click', () => this.#callbacks?.onLeave());
 
     const done = document.createElement('button');
     done.type = 'button';
-    done.className = 'primary';
+    done.className = 'btn btn-primary';
     done.textContent = 'Go to the board';
     done.addEventListener('click', () => this.hide());
 
@@ -330,7 +330,7 @@ export class OnlineDialog {
   #cancelButton(): HTMLButtonElement {
     const cancel = document.createElement('button');
     cancel.type = 'button';
-    cancel.className = 'secondary';
+    cancel.className = 'btn';
     cancel.textContent = 'Cancel';
     cancel.addEventListener('click', () => this.#callbacks?.onLeave());
     return cancel;

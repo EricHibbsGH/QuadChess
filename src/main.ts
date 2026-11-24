@@ -5,6 +5,7 @@
  * to send; it never decides what is legal.
  */
 
+import './ui/styles/daisy.css';
 import './ui/styles/base.css';
 import './ui/styles/board.css';
 import './ui/styles/panels.css';
