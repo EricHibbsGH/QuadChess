@@ -57,6 +57,11 @@ export class OnlineDialog {
     this.#teamLabel = labeller;
   }
 
+  /** Wires up the buttons without opening anything (a reopened room after a reload). */
+  setCallbacks(callbacks: OnlineDialogCallbacks): void {
+    this.#callbacks = callbacks;
+  }
+
   /** Opens the lobby. `prefilledRoom` comes from a shared `?room=` link. */
   open(callbacks: OnlineDialogCallbacks, prefilledRoom = ''): void {
     this.#callbacks = callbacks;

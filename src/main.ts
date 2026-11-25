@@ -30,7 +30,7 @@ import { Controls, type OnlineRole } from './ui/controls.js';
 import { StatusPanel } from './ui/statusPanel.js';
 import { MoveList } from './ui/moveList.js';
 import { Dialogs } from './ui/dialogs.js';
-import { OnlineDialog } from './ui/onlineDialog.js';
+import { OnlineDialog, type OnlineDialogCallbacks } from './ui/onlineDialog.js';
 import { Announcer, describeEvents, describeTurn } from './ui/accessibility.js';
 import { SoundPlayer } from './ui/sound.js';
 import { LocalTransport } from './multiplayer/localTransport.js';
@@ -140,7 +140,11 @@ class App {
 
     // A host who reloads keeps the same code, so links already shared still work.
     const previous = readHostSession();
-    if (previous) void this.#hostOnline(previous.name, previous.roomCode);
+    if (previous) {
+      // The reopened room's dialog needs the same handlers as one opened from the menu.
+      this.#prepareOnlineDialog();
+      void this.#hostOnline(previous.name, previous.roomCode);
+    }
   }
 
   // ----------------------------------------------------------------------
@@ -476,19 +480,26 @@ class App {
   }
 
   #openLobby(): void {
+    this.#prepareOnlineDialog();
+    this.#onlineDialog.open(this.#onlineCallbacks(), this.#pendingRoom);
+  }
+
+  /** Team labels and button handlers, needed whichever way the dialog is reached. */
+  #prepareOnlineDialog(): void {
     this.#onlineDialog.setTeamLabeller((color) =>
       this.#session.profile.teams ? teamLabel(this.#session.profile, color) : null,
     );
-    this.#onlineDialog.open(
-      {
-        onHost: (name) => void this.#hostOnline(name),
-        onJoin: (code, name) => void this.#joinOnline(code, name),
-        onClaim: (color) => this.#peer?.claim(color, this.#playerName),
-        onLeave: () => this.#leaveOnline(),
-        onClose: () => this.#leaveOnline(),
-      },
-      this.#pendingRoom,
-    );
+    this.#onlineDialog.setCallbacks(this.#onlineCallbacks());
+  }
+
+  #onlineCallbacks(): OnlineDialogCallbacks {
+    return {
+      onHost: (name) => void this.#hostOnline(name),
+      onJoin: (code, name) => void this.#joinOnline(code, name),
+      onClaim: (color) => this.#peer?.claim(color, this.#playerName),
+      onLeave: () => this.#leaveOnline(),
+      onClose: () => this.#leaveOnline(),
+    };
   }
 
   /** Replaces the active transport, moving the intent subscription across. */
