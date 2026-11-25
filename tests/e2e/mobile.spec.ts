@@ -61,6 +61,18 @@ test('the controls wrap instead of overflowing', async ({ page }) => {
   expect(overflowing).toBeLessThanOrEqual(1);
 });
 
+test('the in-game actions stay on one row and the rest is behind Menu', async ({ page }) => {
+  const actions = page.locator('.control-group--moves');
+  const box = await actions.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  expect(box.height).toBeLessThan(60);
+  await expect(page.getByRole('button', { name: 'Save / load' })).toBeHidden();
+  await page.getByRole('button', { name: 'Menu' }).tap();
+  await expect(page.getByRole('button', { name: 'Save / load' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Menu' })).toHaveAttribute('aria-expanded', 'true');
+});
+
 test('the side panel stacks below the board', async ({ page }) => {
   const boardBox = await page.locator('.board-region').boundingBox();
   const panelBox = await page.locator('.side-panel').boundingBox();
@@ -71,6 +83,8 @@ test('the side panel stacks below the board', async ({ page }) => {
 });
 
 test('dialogs fit inside the viewport', async ({ page }) => {
+  // On phones the less frequent controls sit behind Menu.
+  await page.getByRole('button', { name: 'Menu' }).tap();
   await page.getByRole('button', { name: 'Save / load' }).tap();
   const dialog = page.locator('dialog.transfer-dialog');
   await expect(dialog).toBeVisible();

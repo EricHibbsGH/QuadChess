@@ -57,6 +57,8 @@ export class Controls {
   #coords: HTMLButtonElement;
   #transfer: HTMLButtonElement;
   #online: HTMLButtonElement;
+  #menu: HTMLButtonElement;
+  #more: HTMLDivElement;
 
   constructor(root: HTMLElement, callbacks: ControlCallbacks) {
     const bar = document.createElement('div');
@@ -64,7 +66,7 @@ export class Controls {
 
     // --- game group ---
     const gameGroup = document.createElement('div');
-    gameGroup.className = 'control-group';
+    gameGroup.className = 'control-group control-group--game';
     gameGroup.setAttribute('role', 'group');
     gameGroup.setAttribute('aria-label', 'Game');
 
@@ -90,7 +92,7 @@ export class Controls {
 
     // --- move group ---
     const moveGroup = document.createElement('div');
-    moveGroup.className = 'control-group';
+    moveGroup.className = 'control-group control-group--moves';
     moveGroup.setAttribute('role', 'group');
     moveGroup.setAttribute('aria-label', 'Moves');
 
@@ -125,8 +127,44 @@ export class Controls {
     this.#online = button('Play online', 'btn', callbacks.onOnline);
     onlineGroup.append(this.#online);
 
-    bar.append(gameGroup, moveGroup, viewGroup, onlineGroup);
+    // On phones only the in-game actions stay out; everything else sits behind
+    // Menu. On wider screens the wrapper disappears and all groups show inline.
+    this.#more = document.createElement('div');
+    this.#more.className = 'controls-more';
+    this.#more.id = 'controls-more';
+    this.#more.append(gameGroup, viewGroup, onlineGroup);
+
+    this.#menu = button('Menu', 'btn controls-menu', () => this.#setMenuOpen(!this.#isMenuOpen()));
+    this.#menu.setAttribute('aria-expanded', 'false');
+    this.#menu.setAttribute('aria-controls', 'controls-more');
+    moveGroup.append(this.#menu);
+
+    // Picking something from the menu closes it again.
+    this.#more.addEventListener('click', (event) => {
+      if ((event.target as HTMLElement).closest('button')) this.#setMenuOpen(false);
+    });
+    // ...and so does tapping anywhere outside the toolbar.
+    document.addEventListener('pointerdown', (event) => {
+      if (this.#isMenuOpen() && !bar.contains(event.target as Node)) this.#setMenuOpen(false);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && this.#isMenuOpen()) {
+        this.#setMenuOpen(false);
+        this.#menu.focus();
+      }
+    });
+
+    bar.append(moveGroup, this.#more);
     root.appendChild(bar);
+  }
+
+  #isMenuOpen(): boolean {
+    return this.#menu.getAttribute('aria-expanded') === 'true';
+  }
+
+  #setMenuOpen(open: boolean): void {
+    this.#menu.setAttribute('aria-expanded', open ? 'true' : 'false');
+    this.#more.classList.toggle('is-open', open);
   }
 
   render(model: ControlsModel): void {

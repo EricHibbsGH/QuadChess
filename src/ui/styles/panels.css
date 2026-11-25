@@ -448,3 +448,218 @@ button:not(.btn) {
 .online-dialog .input {
   margin-top: 6px;
 }
+
+/* ==========================================================================
+   Toolbar: one card. Groups sit on a single line separated by hairlines.
+   ========================================================================== */
+.controls {
+  align-items: center;
+  gap: 6px 0;
+  margin: var(--gap) auto 0;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.controls-more {
+  display: contents;
+}
+.control-group {
+  gap: 6px;
+  padding: 0 8px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+.control-group + .control-group,
+.controls-more > .control-group {
+  border-left: 1px solid var(--line);
+}
+.control-group--moves {
+  border-left: 1px solid var(--line);
+}
+.control-group--game {
+  order: -1;
+  border-left: 0 !important;
+  padding-left: 4px;
+}
+.controls-menu {
+  display: none;
+}
+.controls .btn {
+  --size: 2.25rem;
+  padding-inline: 0.7rem;
+}
+.controls .profile-select.select {
+  min-width: 9.5rem;
+}
+
+/* ==========================================================================
+   Phones: header, a row of in-game actions, the board edge to edge, then a
+   compact status card. Everything else lives behind Menu.
+   ========================================================================== */
+@media (max-width: 700px) {
+  body {
+    padding: 0 6px 16px;
+  }
+  .page-header {
+    padding-top: 10px;
+  }
+  .page-header h1 {
+    font-size: 1.2rem;
+    margin: 0;
+  }
+  .tagline {
+    display: none;
+  }
+
+  .controls {
+    position: relative;
+    display: block;
+    margin-top: 8px;
+    padding: 5px;
+  }
+  .control-group--moves {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    gap: 5px;
+    padding: 0;
+    width: 100%;
+  }
+  .controls .btn {
+    --size: 2.5rem;
+    padding-inline: 0.4rem;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+  .controls-menu {
+    display: inline-flex;
+    padding-inline: 0.75rem;
+  }
+  .controls-menu[aria-expanded='true'] {
+    --btn-color: var(--color-neutral);
+    --btn-fg: var(--color-neutral-content);
+  }
+
+  /* The menu panel opens under the action row, over the board. */
+  .controls-more {
+    display: none;
+  }
+  .controls-more.is-open {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 20;
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 18px 40px -12px rgba(16, 24, 40, 0.35);
+  }
+  .controls-more > .control-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    width: 100%;
+    padding: 0;
+    border-left: 0;
+  }
+  .controls-more > .control-group + .control-group {
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .control-group--game {
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    align-items: center;
+  }
+  .profile-select.select {
+    min-width: 0;
+    width: 100%;
+  }
+  .controls-more .btn {
+    width: 100%;
+  }
+  .controls-more > .control-group:last-child {
+    grid-template-columns: 1fr;
+  }
+
+  .layout {
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .board {
+    width: 100%;
+  }
+  .board-grid {
+    padding: 2px;
+    border-radius: 8px;
+  }
+
+  .side-panel {
+    gap: 10px;
+  }
+  .panel {
+    padding: 10px 12px;
+  }
+  .turn-indicator {
+    font-size: 1rem;
+    margin-bottom: 8px;
+  }
+  .player-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .player-row {
+    grid-template-columns: 24px minmax(0, 1fr);
+    grid-template-areas: 'swatch name' 'swatch status' 'swatch score';
+    column-gap: 8px;
+    row-gap: 0;
+    padding: 6px 8px;
+  }
+  .player-name {
+    font-size: 0.86rem;
+    line-height: 1.25;
+  }
+  .player-status,
+  .player-score {
+    justify-self: start;
+    font-size: 0.76rem;
+  }
+  .player-captures {
+    display: none;
+  }
+  .team-totals {
+    font-size: 0.78rem;
+  }
+  .move-list {
+    max-height: 150px;
+  }
+
+  /* Keyboard shortcuts mean nothing on a phone. */
+  .panel:has(.key-help) {
+    display: none;
+  }
+
+  /* Dialogs become bottom sheets. */
+  .dialog {
+    width: 100%;
+    max-width: 100%;
+    margin: auto 0 0;
+    padding: 20px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    border-radius: 16px 16px 0 0;
+  }
+  .dialog-actions .btn {
+    flex: 1 1 0;
+  }
+}
+
+/* Touch screens of any size: no keyboard panel. */
+@media (pointer: coarse) {
+  .panel:has(.key-help) {
+    display: none;
+  }
+}
